@@ -1,0 +1,14 @@
+package com.akasa.foodservice.repository;
+
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.akasa.foodservice.entity.FoodCategory;
+import com.akasa.foodservice.entity.FoodItem;
+
+public interface CategoryRepository extends JpaRepository<FoodCategory, Long> {
+
+	//FoodCategory findById(Long id);
+
+}
