@@ -26,11 +26,14 @@ import com.akasa.foodservice.entity.UserCartEntry;
 import com.akasa.foodservice.payload.AddToCartFoodItemEntry;
 import com.akasa.foodservice.payload.AddToCartRequest;
 import com.akasa.foodservice.payload.AddToCartResponse;
+import com.akasa.foodservice.payload.CheckoutResponse;
 import com.akasa.foodservice.payload.FoodItemCartEntryPayload;
+import com.akasa.foodservice.payload.OrderHistoryResponse;
 import com.akasa.foodservice.repository.CategoryRepository;
 import com.akasa.foodservice.repository.FoodItemRepository;
 import com.akasa.foodservice.repository.UserCartEntryRepository;
 import com.akasa.foodservice.repository.UserRepository;
+import com.akasa.foodservice.service.UserCartServiceImpl;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -49,6 +52,9 @@ public class FoodServiceController {
 	@Autowired
 	FoodItemRepository foodItemRepository;
 
+	@Autowired
+	UserCartServiceImpl userCartService;
+
 	@GetMapping("/all")
 	public String allAccess() {
 		return "Public Content.";
@@ -56,6 +62,7 @@ public class FoodServiceController {
 
 	@GetMapping(value = "/list-item-by-cat-id/{categoryId}",
 		produces = MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasRole('USER')")
 	public List<FoodItem> findFoodItemsByCategory(@PathVariable Long categoryId) {
 		Optional<FoodCategory> category = categoryRepository.findById(categoryId);
 		List<FoodItem> foodItemList = new ArrayList<>();
@@ -65,12 +72,14 @@ public class FoodServiceController {
 
 	@GetMapping(value = "/get-all-cat",
 		produces = MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasRole('USER')")
 	public List<FoodCategory> getAllCategories() {
 		return categoryRepository.findAll();
 	}
 
 	@GetMapping(value = "/get-cart-entries-for-user/{username}" ,
 	produces =  MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasRole('USER')")
 	public List<FoodItemCartEntryPayload> getCartEntriesForUser(@PathVariable String username) {
 		Optional<FoodServiceUser> user = userRepository.findByUsername(username);
 		List<FoodItemCartEntryPayload> toReturn = new ArrayList<>();
@@ -81,45 +90,24 @@ public class FoodServiceController {
 
 	@PostMapping(value = "/add-items-to-user-cart/{username}" , consumes
 		= MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasRole('USER')")
 	public AddToCartResponse addItemsToUserCart(@RequestBody  AddToCartRequest request,
 		@PathVariable String username) {
-		try {
-			List<Long> idsToAdd = request.getItemsToAdd().stream().
-				map(AddToCartFoodItemEntry::getId).collect(Collectors.toList());
-			List<FoodItem> foodItemsToAdd = foodItemRepository.findAllById(idsToAdd);
-			Map<Long, FoodItem> itemMapToAdd =
-				foodItemsToAdd.stream().collect(Collectors.toMap(FoodItem::getId, Function
-					.identity()));
-			FoodServiceUser user = userRepository.findByUsername(username)
-				.orElseThrow(() -> new Exception("Unable to find user"));
-			List<UserCartEntry> currentCartItems = new ArrayList<>(
-				userCartEntryRepository.findByUserId(user.getId()));
-			Map<Long, UserCartEntry> currentCartItemMap =
-				currentCartItems.stream().collect(Collectors.toMap(x -> x.getItem().getId(),
-					Function.identity()));
-			AtomicBoolean validTransaction = new AtomicBoolean(true);
-			for (AddToCartFoodItemEntry x : request.getItemsToAdd()) {
-				Long requestedInventory = x.getRequestInventory();
-				Long totalInventory = itemMapToAdd.get(x.getId()).getInventorySize();
-				Long inventoryInCart = currentCartItemMap.containsKey(x.getId())
-					? currentCartItemMap.get(x.getId()).getInventoryCount() : 0;
-				if (requestedInventory + inventoryInCart > totalInventory) {
-					validTransaction.set(false);
-					break;
-				}
-			}
-			if (validTransaction.get()) {
-				for (AddToCartFoodItemEntry x : request.getItemsToAdd()) {
-					userCartEntryRepository.saveUserCartEntry(user, itemMapToAdd.get(x.getId()),
-						x.getRequestInventory(),
-						currentCartItemMap.get(x.getId()));
-				}
-			}
-			return new AddToCartResponse("Success", null);
-		} catch (Exception e) {
-			return new AddToCartResponse(e.getMessage(), null);
-		}
+		return userCartService.addItemsToUserCart(username, request.getItemsToAdd());
 	}
+
+	@PostMapping(value = "/checkout-cart/{username}" , produces =  MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasRole('USER')")
+	public CheckoutResponse checkoutUserCart(@PathVariable String username) {
+		return userCartService.checkoutUserCart(username);
+	}
+
+	@GetMapping(value = "/order-history/{username}", produces = MediaType.APPLICATION_JSON_VALUE)
+	@PreAuthorize("hasRole('USER')")
+	public OrderHistoryResponse getOrderHistory(@PathVariable String username) {
+		return userCartService.getOrderHistory(username);
+	}
+
 
 	@GetMapping("/user")
 	@PreAuthorize("hasRole('USER') or hasRole('MODERATOR') or hasRole('ADMIN')")

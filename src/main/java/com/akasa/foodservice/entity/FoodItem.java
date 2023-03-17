@@ -101,4 +101,15 @@ public class FoodItem {
 	@OneToMany(mappedBy = "item", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
 	private Set<UserCartEntry> cartEntries;
 
+	@JsonIgnore
+	@OneToMany(mappedBy = "item", fetch = FetchType.LAZY)
+	private Set<OrderEntry> orderEntries;
+
+	public Set<OrderEntry> getOrderEntries() {
+		return orderEntries;
+	}
+
+	public void setOrderEntries(Set<OrderEntry> orderEntries) {
+		this.orderEntries = orderEntries;
+	}
 }
